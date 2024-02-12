@@ -1,0 +1,16 @@
+user_data/
+experiments/
+som-env/
+out.jpg
+out.png
+output_image.png
+image.png
+overnight-runs.sh
+sdxl.ipynb
+test.ipynb
+main.ipynb
+__pycache__/
+.ipynb_checkpoints/
+api/node_modules/
+api/upload.png
+.DS_Store
