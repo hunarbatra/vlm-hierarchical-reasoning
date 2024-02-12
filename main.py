@@ -35,7 +35,7 @@ def run_img_to_img_experiments(exp_dir: str, data_name: str = 'imagenet-1k-1000'
         
     existing_files = check_file_exists(exp_dir)
     print(f'existing files: {len(existing_files)}')
-    df = load_df(f'experiments/{exp_dir}/', 'responses.csv')
+    df = load_df(f'experiments/{exp_dir}/', 'responses.csv') 
     print(f'df len: {df.image_path.nunique()}')
     
     for i, image_path in enumerate(images_path):
@@ -54,6 +54,7 @@ def run_img_to_img_experiments(exp_dir: str, data_name: str = 'imagenet-1k-1000'
         ref_df = load_df(f'experiments/{ref_dir}/', 'responses.csv')
         # if current image_path exists in ref_df['image_path'] set image_info to ref_df['gpt4-v response']
         if use_ref_dir_responses and filename in ref_df['image_path'].values:
+            # re-use image_info extracted using encoder_model from ref_dir
             image_info = ref_df[ref_df['image_path'] == filename]['gpt4-v response'].values[0]
             print(f'found {filename} in ref_df, setting image_info to {image_info}')
             imageBase = image_to_base64(f'experiments/{ref_dir}/{filename}')
@@ -91,19 +92,23 @@ def run_vqa_experiments(
     use_sam: bool = False, 
     use_cot: bool = False,
     encoder_model: str = 'gpt-4v', 
-    use_ref_dir_responses: bool = False
 ) -> None:
-    if not ref_dir:
-        images_path = get_dataset(data_name, data_cap)
-    else:
-        images_path = get_ref_dir_dataset(data_name, ref_dir)
-        print(f'images len: {len(images_path)}')
-        #todo- get intersection of images_path and existing_files here
-        
-    existing_files = check_file_exists(exp_dir)
+    existing_files = check_file_exists(exp_dir, check_sam=False)
     print(f'existing files: {len(existing_files)}')
     df = load_df(f'experiments/{exp_dir}/', 'responses.csv')
     print(f'df len: {df.image_path.nunique()}')
+    existing_images_path = df['image_path'].values
+    
+    if not ref_dir:
+        # if there is no ref directory to use, get the dataset and exclude the images already processed
+        images_path = get_dataset(data_name, dataset_cap_max=True)
+        images_path = [i.split('/')[-1] for i in images_path]
+        data_cap = data_cap - len(existing_images_path) # update data_cap such that we get max data_cap images for the run
+        images_path = [i for i in images_path if i not in existing_images_path] # exclude the images that have already been processed
+        images_path = get_dataset(data_name, data_cap, files_to_include=images_path)
+    else: # if a reference directory is provided, use the images from that directory (to test over the same set of images)
+        images_path = get_ref_dir_dataset(data_name, ref_dir)
+        images_path = [i for i in images_path if i not in existing_images_path] # exclude the images that have already been processed
     
     questions_df = load_df(f'datasets/{data_name}/', 'prompts.csv')
     
@@ -119,10 +124,10 @@ def run_vqa_experiments(
             continue
         else:
             print(f'now processing: {filename}')
-            
-        question = questions_df[questions_df['image_path'] == filename]['question'].values[0]
-        options = questions_df[questions_df['image_path'] == filename]['options'].values[0]
-        answer = questions_df[questions_df['image_path'] == filename]['answer'].values[0]
+        
+        question = questions_df[questions_df['image_path'] == image_path[2:]]['question'].values[0]
+        options = questions_df[questions_df['image_path'] == image_path[2:]]['options'].values[0]
+        answer = questions_df[questions_df['image_path'] == image_path[2:]]['answer'].values[0]
         input_question = format_question(question, options)
         
         if use_sam:
@@ -137,26 +142,26 @@ def run_vqa_experiments(
             segments_properties_info = encoder_runner(encoder_model, prompt, imageBaseOriginal) # second_call
             if use_cot:
                 prompt = f'{segments_properties_info}\n{input_question}\n{COT_PROMPT}' 
-                cot_answer = encoder_runner(encoder_model, prompt) # third_call
+                cot_answer = encoder_runner(encoder_model, prompt, imageBaseOriginal) # third_call
                 prompt = f'{segments_properties_info}\n{input_question}\n{cot_answer}\n{PROMPT_FOR_ANSWER}'
                 final_answer = encoder_runner(encoder_model, prompt) # fourth_call
-                row_data = {'prompt': [prompt], 'segments_info': [segments_info], 'segments_properties_info': [segments_properties_info], 'cot_answer': [cot_answer], 'final_answer': [final_answer]}
+                row_data = {'final_answer': [final_answer],'correct_answer': [answer], 'prompt': [prompt], 'segments_info': [segments_info], 'segments_properties_info': [segments_properties_info], 'cot_answer': [cot_answer]}
             else:
                 prompt = f'{segments_properties_info}\n{input_question}\n{PROMPT_FOR_ANSWER}'
-                final_answer = encoder_runner(encoder_model, prompt) # third_call
-                row_data = {'prompt': [prompt], 'segments_info': [segments_info], 'segments_properties_info': [segments_properties_info], 'final_answer': [final_answer]}
+                final_answer = encoder_runner(encoder_model, prompt, imageBaseOriginal) # third_call
+                row_data = {'final_answer': [final_answer], 'correct_answer': [answer], 'prompt': [prompt], 'segments_info': [segments_info], 'segments_properties_info': [segments_properties_info]}
         else:
             imageBase = image_to_base64(image_path)
             if use_cot: # Baseline- COT, No SAM/Hierarchical Visual Processing
                 prompt = f'{input_question}\n{COT_PROMPT}'
-                cot_answer = encoder_runner(encoder_model, prompt) # first_call
+                cot_answer = encoder_runner(encoder_model, prompt, imageBase) # first_call
                 prompt = f'{input_question}\n{cot_answer}\n{PROMPT_FOR_ANSWER}'
                 final_answer = encoder_runner(encoder_model, prompt) # second_call
-                row_data = {'prompt': [prompt], 'cot_answer': [cot_answer], 'final_answer': [final_answer]}
+                row_data = {'final_answer': [final_answer], 'correct_answer': [answer], 'prompt': [prompt], 'cot_answer': [cot_answer]}
             else: # Baseline- No COT, No SAM/Hierarchical Visual Processing
                 prompt = f'{input_question}\n{PROMPT_FOR_ANSWER}'
-                final_answer = encoder_runner(encoder_model, prompt) # first_call
-                row_data = {'prompt': [prompt], 'final_answer': [final_answer]}
+                final_answer = encoder_runner(encoder_model, prompt, imageBase) # first_call
+                row_data = {'final_answer': [final_answer], 'correct_answer': [answer], 'prompt': [prompt]}
         
         curr_row = {'image_path': [filename]} 
         curr_row.update(row_data)
@@ -190,10 +195,10 @@ if __name__ == '__main__':
     parser.add_argument('--ref_dir', type=str, default='')
     parser.add_argument('--prompt', type=str, default='', help='prompt')
     parser.add_argument('--use_sam', type=bool, default=False, help='use semantic SAM model')
-    parsed.add_argument('--use_cot', type=bool, default=False, help='use COT model')
+    parser.add_argument('--use_cot', type=bool, default=False, help='use COT model')
     parser.add_argument('--encoder_model', type=str, default='gpt-4v', help='encoder model')
     parser.add_argument('--decoder_model', type=str, default='dall-e3', help='decoder model')
-    parser.add_argument('--use_ref_dir_responses', type=bool, default=False, help='use ref dir responses')
+    parser.add_argument('--use_ref_dir_responses', type=bool, default=False, help='use responses from ref_dir\'s (i.e image info) encoder model for the current run')
     
     args = parser.parse_args()
     
@@ -202,7 +207,7 @@ if __name__ == '__main__':
     if args.exp_name == 'img_to_img':
         run_img_to_img_experiments(args.exp_dir, args.data_name, args.data_cap, args.prompt, args.ref_dir, args.use_sam, args.encoder_model, args.decoder_model, args.use_ref_dir_responses)
     elif args.exp_name == 'vqa':
-        run_vqa_experiments(args.exp_dir, args.data_name, args.data_cap, args.prompt, args.ref_dir, args.use_sam, args.use_cot, args.encoder_model, args.use_ref_dir_responses)
+        run_vqa_experiments(args.exp_dir, args.data_name, args.data_cap, args.prompt, args.ref_dir, args.use_sam, args.use_cot, args.encoder_model)
     elif args.exp_name == 'img_to_img_test':
         run_img_to_img_experiments_test(args.exp_dir, args.use_sam)
     
