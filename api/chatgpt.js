@@ -114,9 +114,14 @@ class OpenAIChatController extends EventEmitter {
         await this.page.$eval(secondSliderSelector, el => el.dispatchEvent(new Event('change')));
 
         // remove checkmark from "mark" - adding numbers has been confusing and hiding segments in the image
-        const labelSelector = 'label.svelte-1qxcj04.selected'; // Adjust the selector if necessary
-        await this.page.waitForSelector(labelSelector);
-        await this.page.$eval(labelSelector, el => el.classList.remove('selected'));
+        await this.page.evaluate(() => {
+            const labels = Array.from(document.querySelectorAll('label.svelte-1qxcj04')); // Get all labels with this class
+            const markLabel = labels.find(label => label.textContent.includes('Mark')); // Find the label with the text 'Mark'
+            if (markLabel) {
+              const checkbox = markLabel.querySelector('input[type="checkbox"]'); // Find the checkbox inside that label
+              checkbox.click(); // Click the checkbox
+            }
+          });
 
         await this.page.waitForTimeout(3000);
 
