@@ -23,12 +23,11 @@ class OpenAIChatController extends EventEmitter {
         this.page = await this.browser.newPage();
         await this.page.exposeFunction('emitEndTurn', (data) => this.emit('end_turn', data));
 
+        await this.page.goto('https://chat.openai.com/?model=gpt-4', {waituntil: 'networkidle0'});
         await this.preparePage();
     }
 
     async preparePage() {
-        await this.page.goto('https://chat.openai.com/?model=gpt-4', {waituntil: 'load', timeout: 0});
-
         await this.page.waitForSelector('input[type="file"]', {waituntil: 'networkidle0'});
         await this.page.evaluate(() => {
             const {fetch: origFetch} = window;
@@ -87,7 +86,7 @@ class OpenAIChatController extends EventEmitter {
         const input = await this.page.$('input[type="file"]');
         await input.uploadFile(filePath);
         // wait until upload is complete
-        await this.page.waitForSelector('button[data-testid="send-button"]:not([disabled])');
+        await this.page.waitForSelector('button[data-testid="send-button"]:not([disabled])', {waituntil: 'networkidle0'});
     }
 
     async close() {
