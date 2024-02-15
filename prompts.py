@@ -51,5 +51,14 @@ Finally, generate a holistic caption for the given image.
 
 Segments identified in the image-'''
 
-COT_PROMPT = '''Let's think step by step:'''
-PROMPT_FOR_ANSWER = '''Therefore, the best answer is: ('''
+COT_PROMPT = '''Please think step by step and then give your answer in the format "Therefore, the best answer is: (X). It's very important that you stick to this format.
+
+Answer: Let's think step by step:'''
+
+NO_COT_PROMPT = '''Give your answer in the format "Therefore, the best answer is: (X). It's very important that you stick to this format.
+
+Answer:'''
+
+PROMPT_FOR_ANSWER = '''The best answer is: ('''
+
+EXTRACT_ANSWER_GAURDRAIL_PROMPT = '''What is the final best answer for the given question out of the given options? Only return the best answer choice letter. It's very important that you stick to this format, and only return the single best answer choice letter.'''
