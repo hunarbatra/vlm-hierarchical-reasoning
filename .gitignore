@@ -14,3 +14,4 @@ __pycache__/
 api/node_modules/
 api/upload.png
 .DS_Store
+.env
