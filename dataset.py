@@ -17,12 +17,13 @@ def get_dataset(dataset_name: str = 'imagenet-1k-1000', dataset_cap: int = 100, 
     sampled_files = random.sample(all_files, dataset_cap)
     return sampled_files
 
-def get_ref_dir_dataset(dataset_name: str = '', ref_dir: str = '') -> list[str]:
+def get_ref_dir_dataset(dataset_name: str = '', ref_dir: str = '', check_sam: bool = True) -> list[str]:
     dir_path = f"./experiments/{ref_dir}"
     all_files = [os.path.join(dir_path, file) for file in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, file))]
     all_files = [file for file in all_files if '.jpg' not in file]
     all_files = [file for file in all_files if '.csv' not in file]
-    all_files = [file for file in all_files if 'sam' not in file]
+    if check_sam:
+        all_files = [file for file in all_files if 'sam' not in file]
     return all_files
 
 def check_file_exists(exp_dir: str = '', check_sam: bool = True) -> list:
