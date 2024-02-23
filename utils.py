@@ -76,4 +76,4 @@ def task_mapper(task: str = '') -> str:
         "mmmu-yes-sam-yes-cot": "VHR + COT",
     }
     
-    return task_map[task]
+    return task_map.get(task, task)
