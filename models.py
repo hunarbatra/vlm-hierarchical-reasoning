@@ -29,7 +29,7 @@ headers = {
     'Content-Type': 'application/json',
 }
 
-fuyu_client = Client("https://adept-fuyu-8b-demo.hf.space/--replicas/myhva/") # might need to update this regularly
+fuyu_client = Client("https://adept-fuyu-8b-demo.hf.space/--replicas/pv8qh/") # might need to update this regularly
 # sdxl_client = Client("https://hysts-sd-xl.hf.space/")
 
 @tenacity.retry(stop=tenacity.stop_after_attempt(5), wait=tenacity.wait_fixed(120))

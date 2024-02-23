@@ -67,3 +67,13 @@ def extract_answer(model_answer: str) -> Optional[str]:
         if ans in ascii_uppercase:
             return ans
     return None
+
+def task_mapper(task: str = '') -> str:
+    task_map = {
+        "mmmu-no-sam-no-cot": "GPT-4V + No COT",
+        "mmmu-no-sam-yes-cot": "GPT-4V + COT",
+        "mmmu-yes-sam-no-cot": "VHR (GPT-4V + SAM)",
+        "mmmu-yes-sam-yes-cot": "VHR + COT",
+    }
+    
+    return task_map[task]
