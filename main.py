@@ -139,6 +139,7 @@ def run_vqa_experiments(
     ref_dir: str = '', 
     use_sam: bool = False, 
     use_cot: bool = False,
+    use_frozen_llm: bool = False,
     encoder_model: str = 'gpt-4v', 
     use_openai_api: bool = False,
 ) -> None: 
@@ -158,9 +159,8 @@ def run_vqa_experiments(
         print(f'files to inlude len: {len(images_path)}')
         images_path = get_dataset(data_name, data_cap, files_to_include=images_path)
     else: # if a reference directory is provided, use the images from that directory (to test over the same set of images)
-        images_path = get_ref_dir_dataset(data_name, ref_dir, check_sam=False)
-        images_path = [i.split('/')[-1] for i in images_path]
-        images_path = [f"{i.split('_sam.png')[0]}.png" for i in images_path]
+        ref_df = load_df(f'experiments/{ref_dir}/', 'responses.csv')
+        images_path = ref_df['image_path'].values
         images_path = [i for i in images_path if i not in existing_images_path] # exclude the images that have already been processed
         images_path = [f"./datasets/{data_name}/{i}" for i in images_path]
     
@@ -193,6 +193,7 @@ def run_vqa_experiments(
         input_question = format_question(question, options)
         
         if use_sam:
+            # todo - add re-using processed SAM images if using ref_dir and they exist
             print('using SAM')
             imageBase = image_to_base64(image_path)
             saved_images = True
@@ -218,14 +219,16 @@ def run_vqa_experiments(
                 imageBaseOriginal,
                 use_openai_api
             ) # second_call
+
+            imageBaseOriginal = '' if use_frozen_llm else imageBaseOriginal
             
             if use_cot:
-                prompt = f'{segments_properties_info}\n{input_question}\n{COT_PROMPT}' 
+                prompt = f'{segments_properties_info}\n{input_question}\n{COT_PROMPT}'
                 cot_answer = encoder_runner(
                     encoder_model, 
                     prompt, 
                     imageBaseOriginal,
-                    use_openai_api) # third_call
+                    use_openai_api=use_openai_api) # third_call
                 
                 prompt = f'{prompt}\n{cot_answer}\n{PROMPT_FOR_ANSWER}'
                 final_answer, parsed_ans = encoder_runner(
@@ -259,6 +262,7 @@ def run_vqa_experiments(
                     use_openai_api=use_openai_api,
                     final_answer=True
                 ) # fourth_call
+                
                 row_data = {
                     'image_path': [filename],
                     'question': [input_question],
@@ -277,8 +281,9 @@ def run_vqa_experiments(
                     encoder_model, 
                     prompt, 
                     imageBase,
-                    use_openai_api) # first_call
-                
+                    use_openai_api
+                ) # first_call
+
                 prompt = f'{prompt}\n{cot_answer}\n{PROMPT_FOR_ANSWER}'
                 final_answer, parsed_ans = encoder_runner(
                     encoder_model, 
@@ -286,12 +291,16 @@ def run_vqa_experiments(
                     use_openai_api=use_openai_api,
                     final_answer=True) # second_call
                   
-                row_data = {'image_path': [filename], 'question': [input_question], 
-                'cot_answer': [cot_answer], 'final_answer': [final_answer], 
-                'parsed_answer': [parsed_ans],
-                'correct_answer': [answer],
-                'prompt': [prompt]}
-            else: # Baseline- No COT, No SAM/Hierarchical Visual Processing
+                row_data = {
+                    'image_path': [filename], 
+                    'question': [input_question], 
+                    'cot_answer': [cot_answer], 
+                    'final_answer': [final_answer], 
+                    'parsed_answer': [parsed_ans],
+                    'correct_answer': [answer],
+                    'prompt': [prompt]
+                }
+            else: # SAM + No COT
                 prompt = f'{input_question}\n{NO_COT_PROMPT}:'
                 intermediate_ans = encoder_runner(
                     encoder_model, 
